@@ -17,6 +17,7 @@ class AppState {
     var currentUser: User?
     var notificationPermissionStatus: UNAuthorizationStatus = .notDetermined
     var notificationPermissionRequested: Bool = false
+    var onboardingData = OnboardingData()
     
     private let tokenKey = "user_auth_token"
     private let userKey = "user_data"
@@ -102,20 +103,24 @@ class AppState {
     func handleAuthSession(_ session: Session) {
         Task {
             do {
-                let supabaseUser = try await SupabaseManager.shared.currentUser
-                let localUser = supabaseUser?.toLocalUser() ?? User(
-                    id: UUID(),
-                    phoneNumber: session.user.phone ?? "",
-                    name: "User"
-                )
+                // Check if user exists in our database, create if not
+                let databaseUser = try await getOrCreateUser(from: session)
                 
                 await MainActor.run {
-                    self.currentUser = localUser
+                    self.currentUser = User(
+                        id: databaseUser.id,
+                        phoneNumber: databaseUser.phoneNumber,
+                        name: databaseUser.name ?? "User"
+                    )
                     self.isLoggedIn = true
                     self.saveSession(session)
                     
-                    // Navigate to notification permission if not requested yet
-                    if !self.notificationPermissionRequested {
+                    // Check if profile is complete
+                    if !databaseUser.profileComplete {
+                        // Navigate to onboarding
+                        self.navigationPath.append(AppDestination.onboarding)
+                    } else if !self.notificationPermissionRequested {
+                        // Navigate to notification permission if not requested yet
                         self.navigationPath.append(AppDestination.notificationPermission)
                     } else {
                         // Clear navigation stack to go to main app
@@ -124,9 +129,50 @@ class AppState {
                 }
             } catch {
                 await MainActor.run {
-                    print("Error getting user: \(error)")
+                    print("Error handling auth session: \(error)")
                 }
             }
+        }
+    }
+    
+    /// Get existing user or create new one
+    private func getOrCreateUser(from session: Session) async throws -> DatabaseUser {
+        let userId = UUID(uuidString: session.user.id.uuidString)!
+        let phoneNumber = session.user.phone ?? ""
+        
+        // Try to get existing user
+        do {
+            let existingUser: DatabaseUser = try await SupabaseManager.shared.client
+                .from("users")
+                .select()
+                .eq("id", value: userId)
+                .single()
+                .execute()
+                .value
+            
+            return existingUser
+        } catch {
+            // User doesn't exist, create new one
+            let newUser = DatabaseUser(
+                id: userId,
+                phoneNumber: phoneNumber,
+                name: nil,
+                profileComplete: false,
+                approvalStatus: .pending,
+                vouchCount: 0,
+                createdAt: Date(),
+                updatedAt: Date()
+            )
+            
+            let createdUser: DatabaseUser = try await SupabaseManager.shared.client
+                .from("users")
+                .insert(newUser)
+                .select()
+                .single()
+                .execute()
+                .value
+            
+            return createdUser
         }
     }
     
@@ -246,6 +292,9 @@ struct Attendee: Identifiable, Codable, Hashable {
 // MARK: - Navigation Destinations
 enum AppDestination: Hashable {
     case onboarding
+    case onboardingBasicInfo
+    case onboardingPhotos
+    case onboardingPrompts
     case main
     case login
     case phoneEntry

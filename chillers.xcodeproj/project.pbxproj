@@ -12,6 +12,7 @@
 		4A3F8C0F2E0F767C006EA3A4 /* PostgREST in Frameworks */ = {isa = PBXBuildFile; productRef = 4A3F8C0E2E0F767C006EA3A4 /* PostgREST */; };
 		4A3F8C112E0F767C006EA3A4 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = 4A3F8C102E0F767C006EA3A4 /* Realtime */; };
 		4A3F8C132E0F767C006EA3A4 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = 4A3F8C122E0F767C006EA3A4 /* Storage */; };
+		4A3F8C592E0F77EB006EA3A4 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 4A3F8C142E0F767C006EA3A4 /* Supabase */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -31,6 +32,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4A3F8C592E0F77EB006EA3A4 /* Supabase in Frameworks */,
 				4A3F8C0F2E0F767C006EA3A4 /* PostgREST in Frameworks */,
 				4A3F8C0D2E0F767C006EA3A4 /* Functions in Frameworks */,
 				4A3F8C0B2E0F767C006EA3A4 /* Auth in Frameworks */,

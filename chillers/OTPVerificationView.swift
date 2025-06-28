@@ -130,6 +130,7 @@ struct OTPVerificationView: View {
         }
         .background(Color(.systemBackground))
         .navigationBarBackButtonHidden(true)
+        .transition(.opacity.combined(with: .move(edge: .trailing)))
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 Button {

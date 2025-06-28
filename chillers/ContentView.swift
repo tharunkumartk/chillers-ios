@@ -23,6 +23,7 @@ struct ContentView: View {
             }
             .navigationDestination(for: AppDestination.self) { destination in
                 destinationView(for: destination)
+                    .animation(.easeInOut(duration: 0.4), value: appState.navigationPath)
             }
         }
         
@@ -33,6 +34,12 @@ struct ContentView: View {
         switch destination {
         case .onboarding:
             OnboardingView()
+        case .onboardingBasicInfo:
+            OnboardingBasicInfoView()
+        case .onboardingPhotos:
+            OnboardingPhotosView()
+        case .onboardingPrompts:
+            OnboardingPromptsView()
         case .main:
             MainTabView()
         case .login:

@@ -105,6 +105,7 @@ struct NotificationPermissionView: View {
         }
         .background(Color(.systemBackground))
         .navigationBarHidden(true)
+        .transition(.opacity.combined(with: .move(edge: .trailing)))
     }
     
     private func requestNotifications() {
@@ -131,8 +132,10 @@ struct NotificationPermissionView: View {
         isLoading = false
         
         // User is already authenticated via Supabase at this point
-        // Just clear navigation to go to main app
-        appState.navigationPath = NavigationPath()
+        // Just clear navigation to go to main app with animation
+        withAnimation(.easeInOut(duration: 0.4)) {
+            appState.navigationPath = NavigationPath()
+        }
     }
 }
 

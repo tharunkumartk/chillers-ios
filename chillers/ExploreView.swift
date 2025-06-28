@@ -103,10 +103,12 @@ extension Post {
 // MARK: - Main Explore View
 
 struct ExploreView: View {
-    @State private var posts = Post.samplePosts
+    @State private var posts: [PostWithVote] = []
     @State private var showingCreatePost = false
-    @State private var userInteractions: [UUID: UserInteraction] = [:]
-    @State private var userComments: [UUID: [UserComment]] = [:]
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    
+    private let postManager = PostManager.shared
     
     var body: some View {
         NavigationStack {
@@ -136,39 +138,70 @@ struct ExploreView: View {
                     // Posts Feed
                     ScrollView {
                         LazyVStack(spacing: 0) {
-                            ForEach(posts) { post in
-                                NavigationLink(destination:
-                                    PostDetailView(
-                                        post: post,
-                                        interaction: userInteractions[post.id] ?? UserInteraction(),
-                                        userComments: userComments[post.id] ?? [],
-                                        onLike: { toggleLike(for: post.id) },
-                                        onDislike: { toggleDislike(for: post.id) },
-                                        onSave: { toggleSave(for: post.id) },
-                                        onComment: { comment in
-                                            addComment(comment, to: post.id)
+                            if isLoading {
+                                VStack(spacing: 20) {
+                                    ProgressView()
+                                        .scaleEffect(1.2)
+                                    Text("Loading confessions...")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 50)
+                            } else if let errorMessage = errorMessage {
+                                VStack(spacing: 16) {
+                                    Image(systemName: "exclamationmark.triangle")
+                                        .font(.system(size: 40))
+                                        .foregroundColor(.orange)
+                                    Text("Oops!")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                    Text(errorMessage)
+                                        .font(.body)
+                                        .foregroundColor(.secondary)
+                                        .multilineTextAlignment(.center)
+                                    Button("Try Again") {
+                                        Task {
+                                            await loadPosts()
                                         }
-                                    )
-                                ) {
-                                    PostRowView(
-                                        post: post,
-                                        interaction: userInteractions[post.id] ?? UserInteraction(),
-                                        userCommentCount: userComments[post.id]?.count ?? 0,
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                }
+                                .padding(.horizontal, 40)
+                                .padding(.top, 50)
+                            } else if posts.isEmpty {
+                                VStack(spacing: 20) {
+                                    Image(systemName: "bubble.left.and.text.bubble.right")
+                                        .font(.system(size: 60))
+                                        .foregroundColor(.secondary)
+                                    Text("No confessions yet")
+                                        .font(.title2)
+                                        .fontWeight(.medium)
+                                    Text("Be the first to share something!")
+                                        .font(.body)
+                                        .foregroundColor(.secondary)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 100)
+                            } else {
+                                ForEach(posts) { postWithVote in
+                                    DatabasePostRowView(
+                                        postWithVote: postWithVote,
                                         onLike: {
-                                            toggleLike(for: post.id)
+                                            Task {
+                                                await handleVote(postId: postWithVote.id, voteType: .upvote)
+                                            }
                                         },
                                         onDislike: {
-                                            toggleDislike(for: post.id)
-                                        },
-                                        onSave: {
-                                            toggleSave(for: post.id)
+                                            Task {
+                                                await handleVote(postId: postWithVote.id, voteType: .downvote)
+                                            }
                                         }
                                     )
+                                    
+                                    Divider()
+                                        .background(Color(.systemGray4))
                                 }
-                                .buttonStyle(PlainButtonStyle())
-                                
-                                Divider()
-                                    .background(Color(.systemGray4))
                             }
                         }
                     }
@@ -201,66 +234,285 @@ struct ExploreView: View {
         }
         .navigationTitle("")
         .navigationBarHidden(true)
+        .onAppear {
+            Task {
+                await loadPosts()
+            }
+        }
+        .refreshable {
+            await loadPosts()
+        }
         .sheet(isPresented: $showingCreatePost) {
-            CreatePostView { newPost in
-                addNewPost(newPost)
+            DatabaseCreatePostView { 
+                await loadPosts() // Reload posts after creating
             }
         }
     }
     
-    private func addNewPost(_ post: Post) {
-        posts.insert(post, at: 0) // Add to the beginning of the list
-    }
+    // MARK: - Private Methods
     
-    private func toggleLike(for postId: UUID) {
-        var interaction = userInteractions[postId] ?? UserInteraction()
+    @MainActor
+    private func loadPosts() async {
+        isLoading = true
+        errorMessage = nil
         
-        if interaction.isLiked {
-            // Already liked, so unlike
-            interaction.isLiked = false
-            interaction.userUpvotes = 0
-        } else {
-            // Not liked, so like it
-            interaction.isLiked = true
-            interaction.isDisliked = false // Remove dislike if present
-            interaction.userUpvotes = 1
+        do {
+            posts = try await postManager.fetchPosts()
+        } catch {
+            errorMessage = error.localizedDescription
         }
         
-        userInteractions[postId] = interaction
+        isLoading = false
     }
     
-    private func toggleDislike(for postId: UUID) {
-        var interaction = userInteractions[postId] ?? UserInteraction()
-        
-        if interaction.isDisliked {
-            // Already disliked, so remove dislike
-            interaction.isDisliked = false
-            interaction.userUpvotes = 0
-        } else {
-            // Not disliked, so dislike it
-            interaction.isDisliked = true
-            interaction.isLiked = false // Remove like if present
-            interaction.userUpvotes = -1
+    @MainActor
+    private func handleVote(postId: UUID, voteType: VoteType) async {
+        do {
+            try await postManager.voteOnPost(postId: postId, voteType: voteType)
+            // Reload posts to get updated vote counts
+            await loadPosts()
+        } catch {
+            // Handle error - could show an alert or toast
+            print("Error voting on post: \(error.localizedDescription)")
         }
-        
-        userInteractions[postId] = interaction
-    }
-    
-    private func toggleSave(for postId: UUID) {
-        var interaction = userInteractions[postId] ?? UserInteraction()
-        interaction.isSaved.toggle()
-        userInteractions[postId] = interaction
-    }
-    
-    private func addComment(_ comment: UserComment, to postId: UUID) {
-        if userComments[postId] == nil {
-            userComments[postId] = []
-        }
-        userComments[postId]?.append(comment)
     }
 }
 
-// MARK: - Create Post View
+// MARK: - Database Post Row View
+
+struct DatabasePostRowView: View {
+    let postWithVote: PostWithVote
+    let onLike: () -> Void
+    let onDislike: () -> Void
+    
+    private var timeAgo: String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: postWithVote.post.createdAt, relativeTo: Date())
+    }
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // Voting Section
+            VStack(spacing: 8) {
+                Button(action: onLike) {
+                    Image(systemName: "arrowtriangle.up.fill")
+                        .foregroundColor(postWithVote.userVoteType == .upvote ? .accent : .secondary)
+                        .font(.system(size: 20))
+                }
+                    
+                Text("\(postWithVote.displayUpvotes)")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.accent)
+                    
+                Button(action: onDislike) {
+                    Image(systemName: "arrowtriangle.down.fill")
+                        .foregroundColor(postWithVote.userVoteType == .downvote ? .red : .secondary)
+                        .font(.system(size: 20))
+                }
+            }
+            .padding(.trailing, 8)
+                
+            // Content Section
+            VStack(alignment: .leading, spacing: 8) {
+                // Header
+                HStack {
+                    if postWithVote.post.isQuote {
+                        Text("QUOTE")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.accent)
+                            .cornerRadius(12)
+                    }
+                        
+                    Text("Anonymous")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.primary)
+                        
+                    Text(timeAgo)
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                        
+                    Spacer()
+                }
+                    
+                // Post Content
+                Text(postWithVote.post.content)
+                    .font(.system(size: 16))
+                    .foregroundColor(.primary)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                // Action Buttons
+                HStack(spacing: 20) {
+                    // Bookmark placeholder
+                    Button(action: {}) {
+                        Image(systemName: "bookmark")
+                            .foregroundColor(.secondary)
+                    }
+                        
+                    // Comments placeholder - could be implemented later
+                    HStack(spacing: 4) {
+                        Image(systemName: "message")
+                        Text("0") // Placeholder for comment count
+                            .font(.system(size: 14))
+                    }
+                    .foregroundColor(.secondary)
+                        
+                    Spacer()
+                }
+                .font(.system(size: 16))
+            }
+                
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+}
+
+// MARK: - Database Create Post View
+
+struct DatabaseCreatePostView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var postContent = ""
+    @State private var isQuote = false
+    @State private var isCreating = false
+    @State private var errorMessage: String?
+    
+    let onPostCreated: () async -> Void
+    private let postManager = PostManager.shared
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 20) {
+                // Header
+                HStack {
+                    Text("Create Confession")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                
+                // Quote Toggle
+                HStack {
+                    Toggle("Mark as Quote", isOn: $isQuote)
+                        .foregroundColor(.primary)
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                
+                // Text Input
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("What's on your mind?")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        Spacer()
+                        
+                        Text("\(postContent.count)/250")
+                            .font(.caption)
+                            .foregroundColor(postContent.count > 250 ? .red : .secondary)
+                    }
+                    .padding(.horizontal, 20)
+                    
+                    TextEditor(text: $postContent)
+                        .foregroundColor(.primary)
+                        .background(Color.clear)
+                        .frame(minHeight: 150)
+                        .padding(.horizontal, 20)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(postContent.count > 250 ? Color.red : Color(.systemGray4), lineWidth: 1)
+                                .padding(.horizontal, 20)
+                        )
+                }
+                
+                // Error Message
+                if let errorMessage = errorMessage {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .padding(.horizontal, 20)
+                }
+                
+                Spacer()
+                
+                // Post Button
+                Button(action: {
+                    Task {
+                        await createPost()
+                    }
+                }) {
+                    HStack {
+                        if isCreating {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(0.8)
+                        }
+                        Text(isCreating ? "Posting..." : "Post")
+                            .font(.system(size: 18, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .background(shouldDisablePost ? Color(.systemGray3) : Color.accentColor)
+                    .cornerRadius(12)
+                }
+                .disabled(shouldDisablePost)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+            }
+            .background(Color(.systemBackground))
+            .navigationTitle("")
+            .navigationBarHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .foregroundColor(.secondary)
+                    .disabled(isCreating)
+                }
+            }
+        }
+    }
+    
+    private var shouldDisablePost: Bool {
+        postContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || 
+        postContent.count > 250 || 
+        isCreating
+    }
+    
+    @MainActor
+    private func createPost() async {
+        isCreating = true
+        errorMessage = nil
+        
+        do {
+            _ = try await postManager.createPost(
+                content: postContent.trimmingCharacters(in: .whitespacesAndNewlines),
+                isQuote: isQuote
+            )
+            
+            await onPostCreated()
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        
+        isCreating = false
+    }
+}
+
+// MARK: - Legacy Create Post View (keeping for compatibility)
 
 struct CreatePostView: View {
     @Environment(\.dismiss) private var dismiss

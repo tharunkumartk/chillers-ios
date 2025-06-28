@@ -15,9 +15,9 @@ struct OnboardingView: View {
     @State private var textOpacity = 1.0
     
     private let animatedTexts = [
-        "bored in a new city?",
-        "want to go out with chillers?",
-        "looking for good music?"
+        "let's set up your profile",
+        "time to get chilly",
+        "make some new friends"
     ]
     
     var body: some View {
@@ -30,7 +30,7 @@ struct OnboardingView: View {
                 .frame(width: 120, height: 120)
             
             VStack(spacing: 20) {
-                Text("chillers")
+                Text("welcome to chillers")
                     .font(.largeTitle)
                     .fontWeight(.bold)
                 
@@ -45,8 +45,12 @@ struct OnboardingView: View {
             Spacer()
             
             VStack(spacing: 16) {
-                NavigationLink(value: AppDestination.phoneEntry) {
-                    Text("Get Started")
+                Button {
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        appState.navigationPath.append(AppDestination.onboardingBasicInfo)
+                    }
+                } label: {
+                    Text("Set Up Profile")
                         .font(.headline)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
@@ -57,6 +61,7 @@ struct OnboardingView: View {
         }
         .padding(30)
         .navigationBarHidden(true)
+        .transition(.opacity.combined(with: .move(edge: .leading)))
         .onAppear {
             startTextAnimation()
         }

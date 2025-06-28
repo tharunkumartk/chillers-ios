@@ -135,6 +135,7 @@ struct LoginView: View {
         }
         .background(Color(.systemBackground))
         .navigationBarHidden(true)
+        .transition(.opacity.combined(with: .move(edge: .leading)))
         .onAppear {
             // Auto-focus on phone field
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -186,8 +187,10 @@ struct LoginView: View {
                 try await appState.sendOTP(to: fullPhoneNumber)
                 
                 await MainActor.run {
-                    // Navigate to OTP verification
-                    appState.navigationPath.append(AppDestination.otpVerification(fullPhoneNumber))
+                    // Navigate to OTP verification with animation
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        appState.navigationPath.append(AppDestination.otpVerification(fullPhoneNumber))
+                    }
                     isLoading = false
                 }
             } catch {

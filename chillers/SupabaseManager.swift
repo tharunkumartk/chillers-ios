@@ -2,6 +2,7 @@ import Foundation
 import Supabase
 
 // MARK: - Supabase Configuration
+
 @Observable
 class SupabaseManager {
     static let shared = SupabaseManager()
@@ -62,9 +63,27 @@ class SupabaseManager {
     func authStateChanges() -> AsyncStream<(event: AuthChangeEvent, session: Session?)> {
         client.auth.authStateChanges
     }
+    
+    // MARK: - Database Query Helpers
+    
+    /// Check if current user is approved
+    func isCurrentUserApproved() async throws -> Bool {
+        let user = try await client.auth.user()
+        
+        let databaseUser: DatabaseUser = try await client
+            .from("users")
+            .select()
+            .eq("id", value: user.id.uuidString)
+            .single()
+            .execute()
+            .value
+        
+        return databaseUser.approvalStatus == .approved
+    }
 }
 
 // MARK: - Supabase User Extension
+
 extension Supabase.User {
     /// Convert Supabase User to local User model
     func toLocalUser() -> User {
@@ -74,4 +93,4 @@ extension Supabase.User {
             name: userMetadata["name"]?.stringValue ?? "User"
         )
     }
-} 
+}
