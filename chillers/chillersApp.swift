@@ -15,7 +15,10 @@ struct chillersApp: App {
         WindowGroup {
             ContentView()
                 .environment(appState)
-                
+                .onOpenURL { url in
+                    // Handle deep links for Supabase auth
+                    SupabaseManager.shared.client.auth.handle(url)
+                }
         }
     }
 }

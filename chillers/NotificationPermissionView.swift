@@ -130,12 +130,8 @@ struct NotificationPermissionView: View {
     private func completeLogin() {
         isLoading = false
         
-        // Complete the login process with the saved phone number
-        if let user = appState.currentUser {
-            appState.login(phoneNumber: user.phoneNumber)
-        }
-        
-        // Navigate back to main app
+        // User is already authenticated via Supabase at this point
+        // Just clear navigation to go to main app
         appState.navigationPath = NavigationPath()
     }
 }

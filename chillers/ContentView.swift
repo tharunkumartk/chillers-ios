@@ -39,6 +39,8 @@ struct ContentView: View {
             LoginView()
         case .phoneEntry:
             LoginView()
+        case .otpVerification(let phoneNumber):
+            OTPVerificationView(phoneNumber: phoneNumber)
         case .notificationPermission:
             NotificationPermissionView()
         case .parties:

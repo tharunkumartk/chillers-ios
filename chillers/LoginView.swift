@@ -178,23 +178,25 @@ struct LoginView: View {
         isLoading = true
         isPhoneFieldFocused = false
         
-        // Simulate API call
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            let cleanNumber = phoneNumber.replacingOccurrences(of: "[^0-9]", with: "", options: .regularExpression)
-            
-            // Save phone number temporarily
-            let user = User(id: UUID(), phoneNumber: "+1\(cleanNumber)", name: "User")
-            appState.currentUser = user
-            
-            // Navigate to notification permission view if not requested yet
-            if !appState.notificationPermissionRequested {
-                appState.navigationPath.append(AppDestination.notificationPermission)
-            } else {
-                // Complete login if notifications already handled
-                appState.login(phoneNumber: "+1\(cleanNumber)")
+        let cleanNumber = phoneNumber.replacingOccurrences(of: "[^0-9]", with: "", options: .regularExpression)
+        let fullPhoneNumber = "+1\(cleanNumber)"
+        
+        Task {
+            do {
+                try await appState.sendOTP(to: fullPhoneNumber)
+                
+                await MainActor.run {
+                    // Navigate to OTP verification
+                    appState.navigationPath.append(AppDestination.otpVerification(fullPhoneNumber))
+                    isLoading = false
+                }
+            } catch {
+                await MainActor.run {
+                    // Handle error - you could show an alert here
+                    print("Failed to send OTP: \(error)")
+                    isLoading = false
+                }
             }
-            
-            isLoading = false
         }
     }
 }
