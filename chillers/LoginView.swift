@@ -20,23 +20,19 @@ struct LoginView: View {
             VStack(spacing: 24) {
                 Spacer()
                 
-                // Logo/Icon
-                Circle()
-                    .fill(.accent)
+                // Logo
+                Image("logo")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
                     .frame(width: 80, height: 80)
-                    .overlay {
-                        Image(systemName: "phone.fill")
-                            .font(.system(size: 32, weight: .medium))
-                            .foregroundColor(.white)
-                    }
                     .shadow(color: .accent.opacity(0.3), radius: 20, x: 0, y: 10)
                 
                 VStack(spacing: 12) {
-                    Text("Welcome to chillers")
+                    Text("chillers")
                         .font(.title.bold())
                         .foregroundColor(.primary)
                     
-                    Text("Enter your phone number to get started")
+                    Text("don't worry we won't give it to the chuzz")
                         .font(.body)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)

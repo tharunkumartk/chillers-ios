@@ -14,44 +14,43 @@ struct PartiesView: View {
     
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 0) {
-                    // Header with Logo and Title
-                    HStack {
-                        HStack(spacing: 8) {
-                            Image("logo")
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 30, height: 30)
-                            
-                            Text("parties")
-                                .font(.system(size: 20, weight: .bold))
-                                .foregroundColor(.primary)
-                        }
+            VStack(spacing: 0) {
+                // Header with Logo and Title
+                HStack {
+                    HStack(spacing: 8) {
+                        Image("logo")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 30, height: 30)
                         
-                        Spacer()
-                        
-                        // Removed non-working plus button
+                        Text("parties")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.primary)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 15)
-                    .background(Color(.systemBackground))
                     
-                    LazyVStack(spacing: 20) {
-                        ForEach(parties) { party in
-                            NavigationLink(destination: PartyDetailView(party: party)) {
-                                PartyCardView(party: party)
-                                    .padding(.horizontal)
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                        }
-                    }
-                    .padding(.top, 20)
+                    Spacer()
+                    
+                    // Removed non-working plus button
                 }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 15)
+                .background(Color(.systemBackground))
+                
+                // Horizontally swipable parties
+                TabView {
+                    ForEach(parties) { party in
+                        NavigationLink(destination: PartyDetailView(party: party)) {
+                            PartyCardView(party: party)
+                                .padding(.horizontal, 20)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                .tabViewStyle(PageTabViewStyle(indexDisplayMode: .always))
+                .indexViewStyle(PageIndexViewStyle(backgroundDisplayMode: .always))
             }
             .background(Color(.systemBackground).ignoresSafeArea())
             .navigationBarHidden(true)
-            
         }
         .onAppear {
             loadMockParties()
@@ -62,8 +61,8 @@ struct PartiesView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         
-        // Mock attendees for different parties
-        let attendees1 = [
+        // Mock attendees
+        let attendees = [
             Attendee(name: "Sarah Johnson"),
             Attendee(name: "Mike Chen"),
             Attendee(name: "Emma Davis"),
@@ -74,28 +73,6 @@ struct PartiesView: View {
             Attendee(name: "David Lee")
         ]
         
-        let attendees2 = [
-            Attendee(name: "Jennifer Lopez"),
-            Attendee(name: "Mark Thompson"),
-            Attendee(name: "Rachel Green"),
-            Attendee(name: "Tom Holland"),
-            Attendee(name: "Zoe Adams"),
-            Attendee(name: "Ryan Cooper")
-        ]
-        
-        let attendees3 = [
-            Attendee(name: "Ashley Williams"),
-            Attendee(name: "Brian Foster"),
-            Attendee(name: "Chloe Taylor"),
-            Attendee(name: "Daniel Moore"),
-            Attendee(name: "Grace Anderson"),
-            Attendee(name: "Kevin Garcia"),
-            Attendee(name: "Mia Roberts"),
-            Attendee(name: "Noah Miller"),
-            Attendee(name: "Olivia White"),
-            Attendee(name: "Sam Jackson")
-        ]
-        
         parties = [
             Party(
                 title: "Alex's Birthday Bash",
@@ -104,53 +81,9 @@ struct PartiesView: View {
                 time: "9:00pm",
                 imageURL: "https://picsum.photos/400/300?random=1",
                 attendeesCount: 45,
-                attendees: attendees1,
+                attendees: attendees,
                 description: "Come celebrate Alex's birthday with an amazing night of music, dancing, and great vibes! We'll have a DJ, open bar, and tons of surprises throughout the night.",
                 location: "123 Party Street, Downtown"
-            ),
-            Party(
-                title: "Summer Rooftop Party",
-                hostName: "Sarah Chen",
-                date: formatter.date(from: "2025-06-29") ?? Date(),
-                time: "7:30pm",
-                imageURL: "https://picsum.photos/400/300?random=2",
-                attendeesCount: 32,
-                attendees: attendees2,
-                description: "Join us for an unforgettable summer evening on our beautiful rooftop terrace. Enjoy cocktails, city views, and great company under the stars.",
-                location: "Skyline Rooftop, 456 High Rise Ave"
-            ),
-            Party(
-                title: "Graduation Celebration",
-                hostName: "Mike Johnson",
-                date: formatter.date(from: "2025-06-30") ?? Date(),
-                time: "8:00pm",
-                imageURL: "https://picsum.photos/400/300?random=3",
-                attendeesCount: 67,
-                attendees: attendees3,
-                description: "Celebrating the end of an incredible journey and the beginning of new adventures! Let's party like we just graduated (because we did!).",
-                location: "University Club, 789 Campus Drive"
-            ),
-            Party(
-                title: "House Warming Party",
-                hostName: "Emma Davis",
-                date: formatter.date(from: "2025-07-01") ?? Date(),
-                time: "6:00pm",
-                imageURL: "https://picsum.photos/400/300?random=4",
-                attendeesCount: 28,
-                attendees: Array(attendees1.prefix(5)),
-                description: "Help us warm our new home with good friends, great food, and amazing memories. House tours included!",
-                location: "Emma's New Place, 321 Cozy Lane"
-            ),
-            Party(
-                title: "Pool Party Extravaganza",
-                hostName: "Jordan Williams",
-                date: formatter.date(from: "2025-07-02") ?? Date(),
-                time: "3:00pm",
-                imageURL: "https://picsum.photos/400/300?random=5",
-                attendeesCount: 89,
-                attendees: attendees1 + attendees2,
-                description: "Beat the heat with the coolest pool party of the summer! Swimming, BBQ, pool games, and endless fun. Don't forget your swimwear!",
-                location: "Splash Zone Pool, 555 Water Park Blvd"
             )
         ]
     }

@@ -17,21 +17,27 @@ struct ContentView: View {
             Group {
                 if appState.isLoggedIn {
                     MainTabView()
-                } else {
+                } else if !appState.hasSeenOnboardingIntro {
                     OnboardingView()
+                } else {
+                    LoginView()
                 }
             }
             .navigationDestination(for: AppDestination.self) { destination in
                 destinationView(for: destination)
-                    .animation(.easeInOut(duration: 0.4), value: appState.navigationPath)
             }
         }
+        .animation(.easeInOut(duration: 0.3), value: appState.navigationPath)
         
     }
 
     @ViewBuilder
     private func destinationView(for destination: AppDestination) -> some View {
         switch destination {
+        case .passphrase:
+            PassphraseView()
+        case .waitlist:
+            WaitlistView()
         case .onboarding:
             OnboardingView()
         case .onboardingBasicInfo:

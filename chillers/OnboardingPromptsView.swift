@@ -1,4 +1,5 @@
 import SwiftUI
+import Supabase
 
 struct OnboardingPromptsView: View {
     @Environment(AppState.self) private var appState
@@ -32,8 +33,8 @@ struct OnboardingPromptsView: View {
                 Spacer()
             }
             .padding(.horizontal, 24)
-            .padding(.top, 60)
-            .padding(.bottom, 40)
+            .padding(.top, 16)
+            .padding(.bottom, 24)
             
             Spacer()
             
@@ -46,6 +47,7 @@ struct OnboardingPromptsView: View {
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 24)
+                    .id("prompt-\(currentStep)") // Force view refresh for animation
                 
                 VStack(spacing: 8) {
                     TextField("Your answer...", text: $responses[currentStep], axis: .vertical)
@@ -59,6 +61,7 @@ struct OnboardingPromptsView: View {
                                 .stroke(isFieldFocused ? .accent : .clear, lineWidth: 2)
                         )
                         .lineLimit(3...6)
+                        .id("textField-\(currentStep)") // Force view refresh for animation
                     
                     HStack {
                         Text("\(responses[currentStep].count)/100 characters")
@@ -113,13 +116,12 @@ struct OnboardingPromptsView: View {
                     }
                     .disabled(!canContinue || isLoading)
                 }
-                .padding(.horizontal, 60)
-                .padding(.bottom, 60)
+                .padding(.horizontal, 30)
+                .padding(.bottom, 30)
             }
         }
         .background(Color(.systemBackground))
         .navigationBarHidden(true)
-        .transition(.opacity.combined(with: .move(edge: .trailing)))
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 isFieldFocused = true
@@ -133,10 +135,10 @@ struct OnboardingPromptsView: View {
     
     private func continueToNext() {
         if currentStep < totalSteps - 1 {
-            withAnimation(.easeInOut(duration: 0.3)) {
+            withAnimation(.easeInOut(duration: 0.4)) {
                 currentStep += 1
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                 isFieldFocused = true
             }
         } else {
@@ -167,12 +169,16 @@ struct OnboardingPromptsView: View {
                 try await saveUserProfile()
                 
                 await MainActor.run {
-                    // Navigate to notification permission or main app with animation
-                    withAnimation(.easeInOut(duration: 0.4)) {
-                        if !appState.notificationPermissionRequested {
+                    // User is now fully logged in, check what's next
+                    if !appState.notificationPermissionRequested {
+                        // Navigate to notification permission if not requested yet
+                        withAnimation(.easeInOut(duration: 0.3)) {
                             appState.navigationPath.append(AppDestination.notificationPermission)
-                        } else {
-                            appState.navigationPath = NavigationPath()
+                        }
+                    } else {
+                        // Navigate to passphrase check or main app
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            appState.navigationPath.append(AppDestination.passphrase)
                         }
                     }
                     isLoading = false
@@ -191,50 +197,92 @@ struct OnboardingPromptsView: View {
             throw NSError(domain: "ProfileError", code: 1, userInfo: [NSLocalizedDescriptionKey: "No user found"])
         }
         
-        // Upload images to Supabase Storage
-        var imageUrls: [String] = []
-        
-        for (index, image) in appState.onboardingData.profileImages.enumerated() {
-            if !image.size.equalTo(.zero) {
-                let imageUrl = try await uploadImage(image, userId: userId, index: index)
-                imageUrls.append(imageUrl)
+        do {
+            // 1. Upload images to Supabase Storage
+            print("Uploading images...")
+            var imageUrls: [String] = []
+            
+            for (index, image) in appState.onboardingData.profileImages.enumerated() {
+                if !image.size.equalTo(.zero) {
+                    let imageUrl = try await uploadImage(image, userId: userId, index: index)
+                    imageUrls.append(imageUrl)
+                }
             }
+            print("Images uploaded: \(imageUrls.count)")
+            
+            // 2. Create user profile
+            print("Creating user profile...")
+            let userProfile = UserProfile(
+                id: UUID(),
+                userId: userId,
+                firstName: appState.onboardingData.firstName.isEmpty ? nil : appState.onboardingData.firstName,
+                lastName: appState.onboardingData.lastName.isEmpty ? nil : appState.onboardingData.lastName,
+                height: appState.onboardingData.height.isEmpty ? nil : appState.onboardingData.height,
+                age: appState.onboardingData.age.isEmpty ? nil : Int(appState.onboardingData.age),
+                company: appState.onboardingData.company.isEmpty ? nil : appState.onboardingData.company,
+                school: appState.onboardingData.school.isEmpty ? nil : appState.onboardingData.school,
+                bio: nil,
+                location: nil,
+                gender: nil,
+                sexuality: nil,
+                profileImages: imageUrls,
+                tags: appState.onboardingData.prompts.compactMap { prompt in
+                    prompt.isComplete ? "\(prompt.question): \(prompt.answer)" : nil
+                },
+                createdAt: Date(),
+                updatedAt: Date()
+            )
+            
+            // 3. Save profile to database
+            try await SupabaseManager.shared.client
+                .from("user_profiles")
+                .insert(userProfile)
+                .execute()
+            print("User profile created successfully")
+            
+            // 4. Save user prompts to database
+            print("Creating user prompts...")
+            for prompt in appState.onboardingData.prompts {
+                if prompt.isComplete {
+                    let userPrompt = [
+                        "user_id": userId.uuidString,
+                        "question": prompt.question,
+                        "answer": prompt.answer
+                    ]
+                    
+                    try await SupabaseManager.shared.client
+                        .from("user_prompts")
+                        .insert(userPrompt)
+                        .execute()
+                }
+            }
+            print("User prompts created successfully")
+            
+            // 5. Update existing user record to mark profile as complete
+            print("Completing user profile...")
+            try await appState.completeUserProfile(with: appState.onboardingData)
+            print("User profile marked as complete")
+            
+            // 6. Update local app state - user is now fully logged in
+            await MainActor.run {
+                if let currentUser = appState.currentUser {
+                    appState.currentUser = User(
+                        id: currentUser.id,
+                        phoneNumber: currentUser.phoneNumber,
+                        name: appState.onboardingData.fullName.isEmpty ? currentUser.name : appState.onboardingData.fullName
+                    )
+                }
+                appState.isLoggedIn = true
+            }
+            print("Profile save completed successfully")
+            
+        } catch {
+            print("Error in saveUserProfile: \(error)")
+            if let postgrestError = error as? PostgrestError {
+                print("PostgrestError - code: \(postgrestError.code ?? "none"), message: \(postgrestError.message)")
+            }
+            throw error
         }
-        
-        // Create user profile
-        let userProfile = UserProfile(
-            id: UUID(),
-            userId: userId,
-            bio: nil,
-            school: appState.onboardingData.school.isEmpty ? nil : appState.onboardingData.school,
-            company: appState.onboardingData.company.isEmpty ? nil : appState.onboardingData.company,
-            location: nil,
-            height: appState.onboardingData.height.isEmpty ? nil : Int(appState.onboardingData.height),
-            gender: nil,
-            sexuality: nil,
-            age: appState.onboardingData.age.isEmpty ? nil : Int(appState.onboardingData.age),
-            profileImages: imageUrls,
-            tags: appState.onboardingData.prompts.compactMap { prompt in
-                prompt.isComplete ? "\(prompt.question): \(prompt.answer)" : nil
-            },
-            createdAt: Date(),
-            updatedAt: Date()
-        )
-        
-        // Save to database
-        try await SupabaseManager.shared.client
-            .from("user_profiles")
-            .insert(userProfile)
-            .execute()
-        
-        // Update user as profile complete
-        try await SupabaseManager.shared.client
-            .from("users")
-            .update(["profile_complete": true])
-            .eq("id", value: userId)
-            .execute()
-        
-        // Update local state - user profile is now complete
     }
     
     private func uploadImage(_ image: UIImage, userId: UUID, index: Int) async throws -> String {
@@ -244,11 +292,11 @@ struct OnboardingPromptsView: View {
         
         let fileName = "\(userId)_\(index)_\(UUID().uuidString).jpg"
         
-        try await SupabaseManager.shared.client.storage
+        try await SupabaseManager.shared.dbClient.storage
             .from("profile-images")
             .upload(path: fileName, file: imageData)
         
-        let publicURL = try SupabaseManager.shared.client.storage
+        let publicURL = try SupabaseManager.shared.dbClient.storage
             .from("profile-images")
             .getPublicURL(path: fileName)
         

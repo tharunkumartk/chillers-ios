@@ -37,14 +37,16 @@ enum ApprovalStatus: String, Codable, CaseIterable {
 struct UserProfile: Codable, Identifiable {
     let id: UUID
     let userId: UUID
-    let bio: String?
-    let school: String?
+    let firstName: String?
+    let lastName: String?
+    let height: String? // stored as string like "5'8""
+    let age: Int?
     let company: String?
+    let school: String?
+    let bio: String?
     let location: String?
-    let height: Int? // in inches
     let gender: String?
     let sexuality: String?
-    let age: Int?
     let profileImages: [String] // Array of image URLs
     let tags: [String]
     let createdAt: Date
@@ -53,14 +55,16 @@ struct UserProfile: Codable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id
         case userId = "user_id"
-        case bio
-        case school
-        case company
-        case location
+        case firstName = "first_name"
+        case lastName = "last_name"
         case height
+        case age
+        case company
+        case school
+        case bio
+        case location
         case gender
         case sexuality
-        case age
         case profileImages = "profile_images"
         case tags
         case createdAt = "created_at"
@@ -202,7 +206,7 @@ struct OnboardingData {
     }
 
     var isComplete: Bool {
-        isBasicInfoComplete && profileImages.count >= 6 && prompts.count >= 3
+        isBasicInfoComplete && profileImages.filter { !$0.size.equalTo(.zero) }.count >= 4 && prompts.count >= 3
     }
 }
 

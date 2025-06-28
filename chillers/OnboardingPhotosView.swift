@@ -114,9 +114,9 @@ struct OnboardingPhotosView: View {
             ImagePicker(selectedImage: selectedImageBinding)
         }
         .onAppear {
-            // Initialize profile images if empty
-            if appState.onboardingData.profileImages.count < 4 {
-                appState.onboardingData.profileImages = Array(repeating: UIImage(), count: 4)
+            // Initialize profile images array to have exactly 4 slots
+            while appState.onboardingData.profileImages.count < 4 {
+                appState.onboardingData.profileImages.append(UIImage())
             }
         }
         .alert("Error", isPresented: .constant(errorMessage != nil)) {
@@ -163,7 +163,9 @@ struct OnboardingPhotosView: View {
     
     private func continueToPrompts() {
         guard canContinue else { return }
-        appState.navigationPath.append(AppDestination.onboardingPrompts)
+        withAnimation(.easeInOut(duration: 0.3)) {
+            appState.navigationPath.append(AppDestination.onboardingPrompts)
+        }
     }
 }
 
@@ -178,18 +180,18 @@ struct PhotoSlotView: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color(.systemGray6))
-                    .aspectRatio(3/4, contentMode: .fit)
+                    .frame(height: 180)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
                             .stroke(Color(.systemGray4), style: StrokeStyle(lineWidth: 1, dash: [5]))
                     )
                 
-                if let uiImage = image {
+                if let uiImage = image, !uiImage.size.equalTo(.zero) && uiImage.size.width > 0 && uiImage.size.height > 0 {
                     Image(uiImage: uiImage)
                         .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color(.systemGray5))
+                        .aspectRatio(contentMode: .fill)
+                        .frame(height: 180)
+                        .clipped()
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                 } else {
                     Image(systemName: "plus")
@@ -199,6 +201,7 @@ struct PhotoSlotView: View {
             }
         }
         .buttonStyle(PlainButtonStyle())
+        .frame(height: 180)
     }
 }
 

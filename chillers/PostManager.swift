@@ -7,7 +7,7 @@ import Supabase
 class PostManager {
     static let shared = PostManager()
     
-    private let supabase = SupabaseManager.shared.client
+    private let supabase = SupabaseManager.shared.authClient
     
     private init() {}
     

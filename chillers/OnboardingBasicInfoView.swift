@@ -74,6 +74,7 @@ struct OnboardingBasicInfoView: View {
                                     RoundedRectangle(cornerRadius: 12)
                                         .stroke(isFieldFocused ? Color.accentColor : Color.clear, lineWidth: 2)
                                 )
+                                .id("textField-\(currentStep)") // Force view refresh for animation
                         }
                     }
                     .padding(.horizontal, 24)
@@ -115,7 +116,6 @@ struct OnboardingBasicInfoView: View {
         }
         .background(Color(.systemBackground))
         .navigationBarHidden(true)
-        .transition(.opacity.combined(with: .move(edge: .trailing)))
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 isFieldFocused = true
@@ -198,15 +198,15 @@ struct OnboardingBasicInfoView: View {
     
     private func continueToNext() {
         if currentStep < totalSteps - 1 {
-            withAnimation(.easeInOut(duration: 0.3)) {
+            withAnimation(.easeInOut(duration: 0.4)) {
                 currentStep += 1
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                 isFieldFocused = true
             }
         } else {
-            // Last step, continue to photos with fade animation
-            withAnimation(.easeInOut(duration: 0.4)) {
+            // Last step, continue to photos
+            withAnimation(.easeInOut(duration: 0.3)) {
                 appState.navigationPath.append(AppDestination.onboardingPhotos)
             }
         }

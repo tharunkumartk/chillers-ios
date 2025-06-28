@@ -17,15 +17,18 @@ class AppState {
     var currentUser: User?
     var notificationPermissionStatus: UNAuthorizationStatus = .notDetermined
     var notificationPermissionRequested: Bool = false
+    var hasSeenOnboardingIntro: Bool = false
     var onboardingData = OnboardingData()
     
     private let tokenKey = "user_auth_token"
     private let userKey = "user_data"
     private let notificationStatusKey = "notification_permission_status"
     private let notificationRequestedKey = "notification_permission_requested"
+    private let onboardingIntroKey = "has_seen_onboarding_intro"
     
     init() {
-        checkAuthToken()
+        loadOnboardingIntroState()
+        // checkAuthToken() // Check for existing auth session on app startup
         loadNotificationSettings()
         setupAuthListener()
     }
@@ -41,6 +44,15 @@ class AppState {
     private func saveNotificationSettings() {
         UserDefaults.standard.set(notificationPermissionRequested, forKey: notificationRequestedKey)
         UserDefaults.standard.set(notificationPermissionStatus.rawValue, forKey: notificationStatusKey)
+    }
+    
+    private func loadOnboardingIntroState() {
+        hasSeenOnboardingIntro = UserDefaults.standard.bool(forKey: onboardingIntroKey)
+    }
+    
+    func markOnboardingIntroAsSeen() {
+        hasSeenOnboardingIntro = true
+        UserDefaults.standard.set(true, forKey: onboardingIntroKey)
     }
     
     func requestNotificationPermissions() async {
@@ -103,28 +115,90 @@ class AppState {
     func handleAuthSession(_ session: Session) {
         Task {
             do {
-                // Check if user exists in our database, create if not
-                let databaseUser = try await getOrCreateUser(from: session)
+                // Check if user already exists in our database
+                let existingUser = try await getUserIfExists(from: session)
                 
                 await MainActor.run {
-                    self.currentUser = User(
-                        id: databaseUser.id,
-                        phoneNumber: databaseUser.phoneNumber,
-                        name: databaseUser.name ?? "User"
-                    )
-                    self.isLoggedIn = true
-                    self.saveSession(session)
-                    
-                    // Check if profile is complete
-                    if !databaseUser.profileComplete {
-                        // Navigate to onboarding
-                        self.navigationPath.append(AppDestination.onboarding)
-                    } else if !self.notificationPermissionRequested {
-                        // Navigate to notification permission if not requested yet
-                        self.navigationPath.append(AppDestination.notificationPermission)
+                    if let databaseUser = existingUser {
+                        // User exists in database, now check if user profile also exists
+                        Task {
+                            do {
+                                let userProfileExists = try await self.getUserProfileExists(for: databaseUser.id)
+                                
+                                await MainActor.run {
+                                    self.currentUser = User(
+                                        id: databaseUser.id,
+                                        phoneNumber: databaseUser.phoneNumber,
+                                        name: databaseUser.name ?? "User"
+                                    )
+                                    self.saveSession(session)
+                                    
+                                    if userProfileExists {
+                                        // Both user and user profile exist - auto login
+                                        self.isLoggedIn = true
+                                        
+                                        if !self.notificationPermissionRequested {
+                                            // Navigate to notification permission if not requested yet
+                                            self.navigationPath.append(AppDestination.notificationPermission)
+                                        } else {
+                                            // Clear navigation stack to go to main app
+                                            self.navigationPath = NavigationPath()
+                                        }
+                                    } else {
+                                        // User exists but no profile - go through onboarding to create profile
+                                        // Don't set isLoggedIn = true yet since profile doesn't exist
+                                        self.navigationPath.append(AppDestination.onboardingBasicInfo)
+                                    }
+                                }
+                            } catch {
+                                await MainActor.run {
+                                    print("Error checking user profile: \(error)")
+                                    // On error, assume profile doesn't exist and go through onboarding
+                                    self.currentUser = User(
+                                        id: databaseUser.id,
+                                        phoneNumber: databaseUser.phoneNumber,
+                                        name: databaseUser.name ?? "User"
+                                    )
+                                    self.saveSession(session)
+                                    self.navigationPath.append(AppDestination.onboardingBasicInfo)
+                                }
+                            }
+                        }
                     } else {
-                        // Clear navigation stack to go to main app
-                        self.navigationPath = NavigationPath()
+                        // User doesn't exist in database yet - create user record now
+                        Task {
+                            do {
+                                let databaseUser = try await self.createUserRecord(from: session)
+                                
+                                await MainActor.run {
+                                    self.currentUser = User(
+                                        id: databaseUser.id,
+                                        phoneNumber: databaseUser.phoneNumber,
+                                        name: databaseUser.name ?? "User"
+                                    )
+                                    // Don't set isLoggedIn = true yet since profile doesn't exist
+                                    self.saveSession(session)
+                                    
+                                    // Navigate to onboarding
+                                    self.navigationPath.append(AppDestination.onboardingBasicInfo)
+                                }
+                            } catch {
+                                await MainActor.run {
+                                    print("Error creating user record: \(error)")
+                                    // Fallback: create temporary user for onboarding
+                                    let userId = UUID(uuidString: session.user.id.uuidString)!
+                                    let phoneNumber = session.user.phone ?? ""
+                                    
+                                    self.currentUser = User(
+                                        id: userId,
+                                        phoneNumber: phoneNumber,
+                                        name: "User"
+                                    )
+                                    self.saveSession(session)
+                                    self.navigationPath.append(AppDestination.onboardingBasicInfo)
+                                }
+                            }
+                        }
                     }
                 }
             } catch {
@@ -135,10 +209,9 @@ class AppState {
         }
     }
     
-    /// Get existing user or create new one
-    private func getOrCreateUser(from session: Session) async throws -> DatabaseUser {
+    /// Check if user exists in database (doesn't create if not found)
+    private func getUserIfExists(from session: Session) async throws -> DatabaseUser? {
         let userId = UUID(uuidString: session.user.id.uuidString)!
-        let phoneNumber = session.user.phone ?? ""
         
         // Try to get existing user
         do {
@@ -152,27 +225,90 @@ class AppState {
             
             return existingUser
         } catch {
-            // User doesn't exist, create new one
-            let newUser = DatabaseUser(
-                id: userId,
-                phoneNumber: phoneNumber,
-                name: nil,
-                profileComplete: false,
-                approvalStatus: .pending,
-                vouchCount: 0,
-                createdAt: Date(),
-                updatedAt: Date()
-            )
-            
-            let createdUser: DatabaseUser = try await SupabaseManager.shared.client
-                .from("users")
-                .insert(newUser)
+            // Check if this is a "not found" error vs other errors
+            if let postgrestError = error as? PostgrestError,
+               postgrestError.code == "PGRST116" { // "not found" error code
+                // User doesn't exist, return nil
+                return nil
+            } else {
+                // Some other error (network, timeout, etc), rethrow
+                throw error
+            }
+        }
+    }
+    
+    /// Check if user profile exists for given user ID
+    private func getUserProfileExists(for userId: UUID) async throws -> Bool {
+        do {
+            let _: UserProfile = try await SupabaseManager.shared.client
+                .from("user_profiles")
                 .select()
+                .eq("user_id", value: userId)
                 .single()
                 .execute()
                 .value
             
-            return createdUser
+            return true // Profile found
+        } catch {
+            // Check if this is a "not found" error vs other errors
+            if let postgrestError = error as? PostgrestError,
+               postgrestError.code == "PGRST116" { // "not found" error code
+                // Profile doesn't exist
+                return false
+            } else {
+                // Some other error (network, timeout, etc), rethrow
+                throw error
+            }
+        }
+    }
+    
+    /// Create basic user record in database (used when user first authenticates)
+    private func createUserRecord(from session: Session) async throws -> DatabaseUser {
+        let userId = UUID(uuidString: session.user.id.uuidString)!
+        let phoneNumber = session.user.phone ?? ""
+        
+        let newUser = DatabaseUser(
+            id: userId,
+            phoneNumber: phoneNumber,
+            name: nil, // Will be set after onboarding
+            profileComplete: false, // Profile not complete yet
+            approvalStatus: .pending,
+            vouchCount: 0,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+        
+        let createdUser: DatabaseUser = try await SupabaseManager.shared.client
+            .from("users")
+            .insert(newUser)
+            .select()
+            .single()
+            .execute()
+            .value
+        
+        return createdUser
+    }
+    
+    /// Update user after onboarding completion
+    func completeUserProfile(with onboardingData: OnboardingData) async throws {
+        guard let userId = currentUser?.id else {
+            throw NSError(domain: "ProfileError", code: 1, userInfo: [NSLocalizedDescriptionKey: "No user found"])
+        }
+        
+        // Update user record to mark profile as complete
+        try await SupabaseManager.shared.client
+            .from("users")
+            .update(["profile_complete": true])
+            .eq("id", value: userId)
+            .execute()
+        
+        // Update user name if provided
+        if !onboardingData.fullName.isEmpty {
+            try await SupabaseManager.shared.client
+                .from("users")
+                .update(["name": onboardingData.fullName])
+                .eq("id", value: userId)
+                .execute()
         }
     }
     
@@ -217,9 +353,11 @@ class AppState {
         UserDefaults.standard.removeObject(forKey: userKey)
         UserDefaults.standard.removeObject(forKey: notificationStatusKey)
         UserDefaults.standard.removeObject(forKey: notificationRequestedKey)
+        UserDefaults.standard.removeObject(forKey: onboardingIntroKey)
         
         self.notificationPermissionStatus = .notDetermined
         self.notificationPermissionRequested = false
+        self.hasSeenOnboardingIntro = false
     }
     
     /// Check for existing Supabase session on app startup
@@ -291,6 +429,8 @@ struct Attendee: Identifiable, Codable, Hashable {
 
 // MARK: - Navigation Destinations
 enum AppDestination: Hashable {
+    case passphrase
+    case waitlist
     case onboarding
     case onboardingBasicInfo
     case onboardingPhotos
