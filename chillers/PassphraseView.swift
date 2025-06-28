@@ -143,13 +143,9 @@ struct PassphraseView: View {
                 // Simulate API call delay
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             if validPassphrases.contains(passphrase.lowercased()) {
-                // Valid passphrase - proceed to notification permission or main app
+                // Valid passphrase - proceed to notification permission screen
                 withAnimation(.easeInOut(duration: 0.4)) {
-                    if !appState.notificationPermissionRequested {
-                        appState.navigationPath.append(AppDestination.notificationPermission)
-                    } else {
-                        appState.navigationPath = NavigationPath()
-                    }
+                    appState.navigationPath.append(AppDestination.notificationPermission)
                 }
             } else {
                 // Invalid passphrase

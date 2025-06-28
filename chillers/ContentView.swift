@@ -15,7 +15,9 @@ struct ContentView: View {
 
         NavigationStack(path: $bindableAppState.navigationPath) {
             Group {
-                if appState.isLoggedIn {
+                if appState.showSplashScreen {
+                    SplashScreenView()
+                } else if appState.isLoggedIn {
                     MainTabView()
                 } else if !appState.hasSeenOnboardingIntro {
                     OnboardingView()
@@ -58,8 +60,8 @@ struct ContentView: View {
             NotificationPermissionView()
         case .parties:
             PartiesView()
-        case .partyDetail(let party):
-            PartyDetailView(party: party)
+        case .partyDetail(let event):
+            PartyDetailView(event: event)
         }
     }
 }

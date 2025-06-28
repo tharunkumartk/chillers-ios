@@ -74,7 +74,7 @@ struct UserProfile: Codable, Identifiable {
 
 // MARK: - Database Event Model
 
-struct DatabaseEvent: Codable, Identifiable {
+struct DatabaseEvent: Codable, Identifiable, Hashable {
     let id: UUID
     let hostId: UUID
     let title: String
@@ -83,7 +83,15 @@ struct DatabaseEvent: Codable, Identifiable {
     let eventDate: Date
     let eventTime: String?
     let imageUrl: String?
-    let maxAttendees: Int?
+    // New fields
+    let spotsRemaining: Int?
+    let totalSpots: Int?
+    let rsvpDeadline: Date?
+    let coHosts: [UUID]
+    let waitlistEnabled: Bool
+    let isOpenInvite: Bool
+    let theme: String?
+    let status: EventStatus
     let createdAt: Date
     let updatedAt: Date
 
@@ -96,10 +104,157 @@ struct DatabaseEvent: Codable, Identifiable {
         case eventDate = "event_date"
         case eventTime = "event_time"
         case imageUrl = "image_url"
-        case maxAttendees = "max_attendees"
+        case spotsRemaining = "spots_remaining"
+        case totalSpots = "total_spots"
+        case rsvpDeadline = "rsvp_deadline"
+        case coHosts = "co_hosts"
+        case waitlistEnabled = "waitlist_enabled"
+        case isOpenInvite = "is_open_invite"
+        case theme
+        case status
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
+    
+    // Regular initializer for programmatic creation (previews, etc.)
+    init(
+        id: UUID,
+        hostId: UUID,
+        title: String,
+        description: String? = nil,
+        location: String? = nil,
+        eventDate: Date,
+        eventTime: String? = nil,
+        imageUrl: String? = nil,
+        spotsRemaining: Int? = nil,
+        totalSpots: Int? = nil,
+        rsvpDeadline: Date? = nil,
+        coHosts: [UUID] = [],
+        waitlistEnabled: Bool = false,
+        isOpenInvite: Bool = false,
+        theme: String? = nil,
+        status: EventStatus,
+        createdAt: Date,
+        updatedAt: Date
+    ) {
+        self.id = id
+        self.hostId = hostId
+        self.title = title
+        self.description = description
+        self.location = location
+        self.eventDate = eventDate
+        self.eventTime = eventTime
+        self.imageUrl = imageUrl
+        self.spotsRemaining = spotsRemaining
+        self.totalSpots = totalSpots
+        self.rsvpDeadline = rsvpDeadline
+        self.coHosts = coHosts
+        self.waitlistEnabled = waitlistEnabled
+        self.isOpenInvite = isOpenInvite
+        self.theme = theme
+        self.status = status
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+    
+    // Custom decoder to handle multiple date formats
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        id = try container.decode(UUID.self, forKey: .id)
+        hostId = try container.decode(UUID.self, forKey: .hostId)
+        title = try container.decode(String.self, forKey: .title)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        location = try container.decodeIfPresent(String.self, forKey: .location)
+        eventTime = try container.decodeIfPresent(String.self, forKey: .eventTime)
+        imageUrl = try container.decodeIfPresent(String.self, forKey: .imageUrl)
+        spotsRemaining = try container.decodeIfPresent(Int.self, forKey: .spotsRemaining)
+        totalSpots = try container.decodeIfPresent(Int.self, forKey: .totalSpots)
+        coHosts = try container.decode([UUID].self, forKey: .coHosts)
+        waitlistEnabled = try container.decode(Bool.self, forKey: .waitlistEnabled)
+        isOpenInvite = try container.decode(Bool.self, forKey: .isOpenInvite)
+        theme = try container.decodeIfPresent(String.self, forKey: .theme)
+        status = try container.decode(EventStatus.self, forKey: .status)
+        
+        // Custom date decoding for eventDate
+        let eventDateString = try container.decode(String.self, forKey: .eventDate)
+        eventDate = try Self.decodeDate(from: eventDateString)
+        
+        // Custom date decoding for rsvpDeadline
+        if let rsvpDeadlineString = try container.decodeIfPresent(String.self, forKey: .rsvpDeadline) {
+            rsvpDeadline = try Self.decodeDate(from: rsvpDeadlineString)
+        } else {
+            rsvpDeadline = nil
+        }
+        
+        // Custom date decoding for createdAt and updatedAt
+        let createdAtString = try container.decode(String.self, forKey: .createdAt)
+        createdAt = try Self.decodeDate(from: createdAtString)
+        
+        let updatedAtString = try container.decode(String.self, forKey: .updatedAt)
+        updatedAt = try Self.decodeDate(from: updatedAtString)
+    }
+    
+    // Helper method to decode dates with multiple possible formats
+    private static func decodeDate(from dateString: String) throws -> Date {
+        // Date formatters for different possible formats
+        let dateOnlyFormatter = DateFormatter()
+        dateOnlyFormatter.dateFormat = "yyyy-MM-dd"
+        dateOnlyFormatter.timeZone = TimeZone.current
+        
+        let iso8601Formatter = ISO8601DateFormatter()
+        iso8601Formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        let iso8601FormatterNoFractional = ISO8601DateFormatter()
+        iso8601FormatterNoFractional.formatOptions = [.withInternetDateTime]
+        
+        // Try different date formats
+        if let date = dateOnlyFormatter.date(from: dateString) {
+            return date
+        } else if let date = iso8601Formatter.date(from: dateString) {
+            return date
+        } else if let date = iso8601FormatterNoFractional.date(from: dateString) {
+            return date
+        } else {
+            throw DecodingError.dataCorrupted(
+                DecodingError.Context(
+                    codingPath: [],
+                    debugDescription: "Invalid date format: \(dateString)"
+                )
+            )
+        }
+    }
+}
+
+enum EventStatus: String, Codable, Hashable {
+    case upcoming
+    case past
+    case cancelled
+}
+
+// MARK: - Event Attendee Model
+
+struct EventAttendee: Codable, Identifiable {
+    let id: UUID
+    let eventId: UUID
+    let userId: UUID
+    let status: AttendeeStatus
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case eventId = "event_id"
+        case userId = "user_id"
+        case status
+        case createdAt = "created_at"
+    }
+}
+
+enum AttendeeStatus: String, Codable, Hashable {
+    case going
+    case maybe
+    case notGoing = "not_going"
+    case waitlist
 }
 
 // MARK: - Database Post Model

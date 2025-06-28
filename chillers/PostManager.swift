@@ -19,6 +19,7 @@ class PostManager {
         let posts: [DatabasePost] = try await supabase
             .from("posts")
             .select()
+            .is("parent_post_id", value: nil) // Only fetch top-level posts (not comments)
             .order("created_at", ascending: false)
             .limit(limit)
             .execute()
@@ -146,6 +147,46 @@ class PostManager {
                 ])
                 .execute()
         }
+    }
+    
+    /// Fetch comments for a specific post
+    func fetchComments(for parentPostId: UUID, limit: Int = 50) async throws -> [PostWithVote] {
+        // Fetch comments (posts with parent_post_id = parentPostId) ordered by creation date
+        let comments: [DatabasePost] = try await supabase
+            .from("posts")
+            .select()
+            .eq("parent_post_id", value: parentPostId)
+            .order("created_at", ascending: true) // Comments in chronological order
+            .limit(limit)
+            .execute()
+            .value
+        
+        // Get current user ID
+        guard let currentUserId = try await getCurrentUserId() else {
+            // If no user, return comments without vote information
+            return comments.map { PostWithVote(post: $0, userVote: nil) }
+        }
+        
+        // Fetch user votes for these comments
+        let commentIds = comments.map { $0.id }
+        let userVotes: [PostVote] = try await supabase
+            .from("post_votes")
+            .select()
+            .eq("user_id", value: currentUserId)
+            .in("post_id", values: commentIds)
+            .execute()
+            .value
+        
+        // Combine comments with votes
+        return comments.map { comment in
+            let userVote = userVotes.first { $0.postId == comment.id }
+            return PostWithVote(post: comment, userVote: userVote)
+        }
+    }
+    
+    /// Create a comment on a post
+    func createComment(content: String, parentPostId: UUID) async throws -> DatabasePost {
+        return try await createPost(content: content, isQuote: false, parentPostId: parentPostId)
     }
     
     /// Delete a post (only by author)

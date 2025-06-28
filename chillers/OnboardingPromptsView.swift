@@ -169,17 +169,9 @@ struct OnboardingPromptsView: View {
                 try await saveUserProfile()
                 
                 await MainActor.run {
-                    // User is now fully logged in, check what's next
-                    if !appState.notificationPermissionRequested {
-                        // Navigate to notification permission if not requested yet
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            appState.navigationPath.append(AppDestination.notificationPermission)
-                        }
-                    } else {
-                        // Navigate to passphrase check or main app
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            appState.navigationPath.append(AppDestination.passphrase)
-                        }
+                    // User is now fully logged in, always go to passphrase page
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        appState.navigationPath.append(AppDestination.passphrase)
                     }
                     isLoading = false
                 }

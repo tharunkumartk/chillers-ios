@@ -12,6 +12,8 @@ import Supabase
 // MARK: - App State Management
 @Observable
 class AppState {
+    static var shared: AppState?
+    
     var isLoggedIn: Bool = false
     var navigationPath = NavigationPath()
     var currentUser: User?
@@ -19,6 +21,7 @@ class AppState {
     var notificationPermissionRequested: Bool = false
     var hasSeenOnboardingIntro: Bool = false
     var onboardingData = OnboardingData()
+    var showSplashScreen: Bool = true
     
     private let tokenKey = "user_auth_token"
     private let userKey = "user_data"
@@ -28,12 +31,25 @@ class AppState {
     
     init() {
         loadOnboardingIntroState()
-        // checkAuthToken() // Check for existing auth session on app startup
         loadNotificationSettings()
         setupAuthListener()
+        startSplashScreenTimer() // Start splash screen timer and delayed auth check
     }
     
-
+    /// Start splash screen timer and delay auth check by 2 seconds
+    private func startSplashScreenTimer() {
+        Task {
+            // Wait for 2 seconds
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            
+            await MainActor.run {
+                self.showSplashScreen = false
+            }
+            
+            // Check auth token after splash screen ends
+            checkAuthToken()
+        }
+    }
     
     private func loadNotificationSettings() {
         notificationPermissionRequested = UserDefaults.standard.bool(forKey: notificationRequestedKey)
@@ -73,6 +89,30 @@ class AppState {
                 self.saveNotificationSettings()
             }
         }
+    }
+    
+    /// Handle APN device token registration
+    func handleAPNDeviceToken(_ deviceToken: Data) {
+        let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
+        
+        Task {
+            guard let userId = currentUser?.id else { return }
+            
+            do {
+                try await SupabaseManager.shared.updateAPNDeviceToken(
+                    userId: userId,
+                    deviceToken: tokenString
+                )
+                print("Successfully updated APN device token")
+            } catch {
+                print("Failed to update APN device token: \(error)")
+            }
+        }
+    }
+    
+    /// Handle APN device token registration failure
+    func handleAPNDeviceTokenError(_ error: Error) {
+        print("Failed to register for remote notifications: \(error)")
     }
     
     func checkNotificationPermissionStatus() async {
@@ -137,13 +177,8 @@ class AppState {
                                         // Both user and user profile exist - auto login
                                         self.isLoggedIn = true
                                         
-                                        if !self.notificationPermissionRequested {
-                                            // Navigate to notification permission if not requested yet
-                                            self.navigationPath.append(AppDestination.notificationPermission)
-                                        } else {
-                                            // Clear navigation stack to go to main app
-                                            self.navigationPath = NavigationPath()
-                                        }
+                                        // Clear navigation stack to go to main app (skip notifications for now)
+                                        self.navigationPath = NavigationPath()
                                     } else {
                                         // User exists but no profile - go through onboarding to create profile
                                         // Don't set isLoggedIn = true yet since profile doesn't exist
@@ -387,45 +422,7 @@ struct User: Codable, Identifiable {
     let name: String
 }
 
-// MARK: - Party Model
-struct Party: Identifiable, Codable, Hashable {
-    let id: UUID
-    let title: String
-    let hostName: String
-    let date: Date
-    let time: String
-    let imageURL: String
-    let attendeesCount: Int
-    let attendees: [Attendee]
-    let description: String
-    let location: String
-    
-    init(title: String, hostName: String, date: Date, time: String, imageURL: String, attendeesCount: Int = 0, attendees: [Attendee] = [], description: String = "", location: String = "") {
-        self.id = UUID()
-        self.title = title
-        self.hostName = hostName
-        self.date = date
-        self.time = time
-        self.imageURL = imageURL
-        self.attendeesCount = attendeesCount
-        self.attendees = attendees
-        self.description = description
-        self.location = location
-    }
-}
-
-// MARK: - Attendee Model
-struct Attendee: Identifiable, Codable, Hashable {
-    let id: UUID
-    let name: String
-    let avatarURL: String?
-    
-    init(name: String, avatarURL: String? = nil) {
-        self.id = UUID()
-        self.name = name
-        self.avatarURL = avatarURL
-    }
-}
+// Note: Party and Attendee models have been moved to DatabaseModels.swift as DatabaseEvent and EventAttendee
 
 // MARK: - Navigation Destinations
 enum AppDestination: Hashable {
@@ -441,5 +438,5 @@ enum AppDestination: Hashable {
     case otpVerification(String) // Phone number parameter
     case notificationPermission
     case parties
-    case partyDetail(Party)
+    case partyDetail(DatabaseEvent)
 } 

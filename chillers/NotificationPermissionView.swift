@@ -11,101 +11,107 @@ import UserNotifications
 struct NotificationPermissionView: View {
     @Environment(AppState.self) private var appState
     @State private var isLoading = false
-    @Environment(\.dismiss) private var dismiss
+    @State private var currentTextIndex = 0
+    @State private var textOpacity = 1.0
+    
+    private let animatedTexts = [
+        "spontaneous vibes",
+        "last minute plans",
+        "when the party starts"
+    ]
     
     var body: some View {
-        VStack(spacing: 0) {
-            // Header Section
-            VStack(spacing: 24) {
-                Spacer()
+        VStack(spacing: 40) {
+            Spacer()
+            
+            Image("logo")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 120, height: 120)
+            
+            VStack(spacing: 20) {
+                Text("if you wanna stay up to date")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                    .multilineTextAlignment(.center)
                 
-                // Notification Icon
-                Circle()
-                    .fill(.accent)
-                    .frame(width: 80, height: 80)
-                    .overlay {
-                        Image(systemName: "bell.fill")
-                            .font(.system(size: 32, weight: .medium))
-                            .foregroundColor(.white)
+                Text("on spontaneous parties")
+                    .font(.title2)
+                    .foregroundStyle(.accent)
+                    .fontWeight(.semibold)
+                
+                Text(animatedTexts[currentTextIndex])
+                    .font(.body)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
+                    .opacity(textOpacity)
+                    .animation(.easeInOut(duration: 0.5), value: textOpacity)
+            }
+            
+            Spacer()
+            
+            VStack(spacing: 16) {
+                Button {
+                    requestNotifications()
+                } label: {
+                    HStack {
+                        if isLoading {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(0.8)
+                        } else {
+                            Text("Yes, Keep Me Posted")
+                                .font(.body.weight(.semibold))
+                        }
                     }
-                    .shadow(color: .accent.opacity(0.3), radius: 20, x: 0, y: 10)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(.accent, in: RoundedRectangle(cornerRadius: 12))
+                    .shadow(color: .accent.opacity(0.3), radius: 8, x: 0, y: 4)
+                }
+                .disabled(isLoading)
                 
-                VStack(spacing: 12) {
-                    Text("Stay in the loop!")
-                        .font(.title.bold())
-                        .foregroundColor(.primary)
-                    
-                    Text("Get notified when there are chillers near you and cool events happening")
+                Button {
+                    skipNotifications()
+                } label: {
+                    Text("Maybe Later")
                         .font(.body)
                         .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
                 }
+                .disabled(isLoading)
                 
-                Spacer()
+                Text("we'll let you know when chillers are around")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
             }
-            .padding(.top, 60)
-            
-            // Benefits Section
-            VStack(spacing: 32) {
-                VStack(spacing: 16) {
-                    NotificationBenefitRow(
-                        icon: "snowflake",
-                        iconColor: .accent,
-                        title: "Stay Connected",
-                        description: "Know when chillers are around to hang out"
-                    )
-                    
-                    NotificationBenefitRow(
-                        icon: "calendar",
-                        iconColor: .blue,
-                        title: "Events & Parties",
-                        description: "Don't miss out on the fun happening nearby"
-                    )
-                }
-                
-                // Buttons
-                VStack(spacing: 12) {
-                    Button {
-                        requestNotifications()
-                    } label: {
-                        HStack {
-                            if isLoading {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                    .scaleEffect(0.8)
-                            } else {
-                                Text("Enable Notifications")
-                                    .font(.body.weight(.semibold))
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(.accent)
-                        .foregroundColor(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
-                        .shadow(color: .accent.opacity(0.3), radius: 8, x: 0, y: 4)
-                    }
-                    .disabled(isLoading)
-                    
-                    Button {
-                        skipNotifications()
-                    } label: {
-                        Text("Maybe Later")
-                            .font(.body.weight(.medium))
-                            .foregroundColor(.secondary)
-                            .padding(.vertical, 8)
-                    }
-                    .disabled(isLoading)
-                }
-                
-                Spacer()
-            }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 40)
         }
+        .padding(30)
         .background(Color(.systemBackground))
         .navigationBarHidden(true)
-        .transition(.opacity.combined(with: .move(edge: .trailing)))
+        .onAppear {
+            startTextAnimation()
+        }
+    }
+    
+    private func startTextAnimation() {
+        Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
+            withAnimation(.easeInOut(duration: 0.5)) {
+                textOpacity = 0.0
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                currentTextIndex = (currentTextIndex + 1) % animatedTexts.count
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    textOpacity = 1.0
+                }
+            }
+        }
     }
     
     private func requestNotifications() {
@@ -113,6 +119,11 @@ struct NotificationPermissionView: View {
         
         Task {
             await appState.requestNotificationPermissions()
+            
+            // Register for remote notifications to get device token
+            await MainActor.run {
+                UIApplication.shared.registerForRemoteNotifications()
+            }
             
             await MainActor.run {
                 completeLogin()
@@ -135,39 +146,6 @@ struct NotificationPermissionView: View {
         // Just clear navigation to go to main app with animation
         withAnimation(.easeInOut(duration: 0.4)) {
             appState.navigationPath = NavigationPath()
-        }
-    }
-}
-
-struct NotificationBenefitRow: View {
-    let icon: String
-    let iconColor: Color
-    let title: String
-    let description: String
-    
-    var body: some View {
-        HStack(spacing: 16) {
-            Circle()
-                .fill(iconColor.opacity(0.1))
-                .frame(width: 44, height: 44)
-                .overlay {
-                    Image(systemName: icon)
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(iconColor)
-                }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.body.weight(.semibold))
-                    .foregroundColor(.primary)
-                
-                Text(description)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.leading)
-            }
-            
-            Spacer()
         }
     }
 }

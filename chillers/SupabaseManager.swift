@@ -42,7 +42,7 @@ class SupabaseManager {
             phone: phoneNumber
         )
     }
-    
+        
     /// Verify OTP and sign in
     func verifyOTP(phone: String, token: String) async throws -> AuthResponse {
         let response = try await authClient.auth.verifyOTP(
@@ -94,6 +94,112 @@ class SupabaseManager {
         return databaseUser.approvalStatus == .approved
     }
     
+    // MARK: - Event Methods
+    
+    /// Fetch events
+    func fetchEvents() async throws -> [DatabaseEvent] {
+        try await dbClient
+            .from("events")
+            .select()
+            .order("event_date", ascending: true)
+            .execute()
+            .value
+    }
+    
+    /// Update event attendance
+    func updateEventAttendance(
+        eventId: UUID,
+        status: AttendeeStatus
+    ) async throws {
+        let userId = try await currentUser?.id
+        
+        // Check if attendance record exists
+        let existing: [EventAttendee] = try await dbClient
+            .from("event_attendees")
+            .select()
+            .eq("event_id", value: eventId)
+            .eq("user_id", value: userId?.uuidString ?? "")
+            .execute()
+            .value
+        
+        if existing.isEmpty {
+            // Create new attendance
+            try await dbClient
+                .from("event_attendees")
+                .insert([
+                    "event_id": eventId.uuidString,
+                    "user_id": userId?.uuidString ?? "",
+                    "status": status.rawValue
+                ])
+                .execute()
+        } else {
+            // Update existing attendance
+            try await dbClient
+                .from("event_attendees")
+                .update(["status": status.rawValue])
+                .eq("event_id", value: eventId)
+                .eq("user_id", value: userId?.uuidString ?? "")
+                .execute()
+        }
+    }
+    
+    /// Get event attendees
+    func getEventAttendees(eventId: UUID) async throws -> [EventAttendee] {
+        try await dbClient
+            .from("event_attendees")
+            .select()
+            .eq("event_id", value: eventId)
+            .execute()
+            .value
+    }
+    
+    /// Get current user's attendance status for an event
+    func getCurrentUserAttendanceStatus(eventId: UUID) async throws -> AttendeeStatus? {
+        let userId = try await currentUser?.id
+        
+        let attendees: [EventAttendee] = try await dbClient
+            .from("event_attendees")
+            .select()
+            .eq("event_id", value: eventId)
+            .eq("user_id", value: userId?.uuidString ?? "")
+            .execute()
+            .value
+        
+        return attendees.first?.status
+    }
+    
+    /// Get user profile by ID
+    func getUserProfile(userId: UUID) async throws -> UserProfile? {
+        let profiles: [UserProfile] = try await dbClient
+            .from("user_profiles")
+            .select()
+            .eq("user_id", value: userId)
+            .execute()
+            .value
+        
+        return profiles.first
+    }
+    
+    /// Get database user by ID
+    func getDatabaseUser(userId: UUID) async throws -> DatabaseUser? {
+        let users: [DatabaseUser] = try await dbClient
+            .from("users")
+            .select()
+            .eq("id", value: userId)
+            .execute()
+            .value
+        
+        return users.first
+    }
+    
+    /// Update user profile with APN device token
+    func updateAPNDeviceToken(userId: UUID, deviceToken: String) async throws {
+        try await dbClient
+            .from("user_profiles")
+            .update(["apn_device_token": deviceToken])
+            .eq("user_id", value: userId)
+            .execute()
+    }
 
 }
 
