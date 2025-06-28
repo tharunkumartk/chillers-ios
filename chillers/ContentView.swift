@@ -15,9 +15,7 @@ struct ContentView: View {
 
         NavigationStack(path: $bindableAppState.navigationPath) {
             Group {
-                if appState.showSplashScreen {
-                    SplashScreenView()
-                } else if appState.isLoggedIn {
+                if appState.isLoggedIn {
                     MainTabView()
                 } else if !appState.hasSeenOnboardingIntro {
                     OnboardingView()

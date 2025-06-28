@@ -21,7 +21,6 @@ class AppState {
     var notificationPermissionRequested: Bool = false
     var hasSeenOnboardingIntro: Bool = false
     var onboardingData = OnboardingData()
-    var showSplashScreen: Bool = true
     
     private let tokenKey = "user_auth_token"
     private let userKey = "user_data"
@@ -33,22 +32,7 @@ class AppState {
         loadOnboardingIntroState()
         loadNotificationSettings()
         setupAuthListener()
-        startSplashScreenTimer() // Start splash screen timer and delayed auth check
-    }
-    
-    /// Start splash screen timer and delay auth check by 2 seconds
-    private func startSplashScreenTimer() {
-        Task {
-            // Wait for 2 seconds
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            
-            await MainActor.run {
-                self.showSplashScreen = false
-            }
-            
-            // Check auth token after splash screen ends
-            checkAuthToken()
-        }
+        checkAuthToken() // Check auth token immediately instead of using splash screen timer
     }
     
     private func loadNotificationSettings() {
