@@ -46,6 +46,9 @@ struct OnboardingView: View {
             
             VStack(spacing: 16) {
                 Button {
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
+                    impactFeedback.impactOccurred()
+                    
                     appState.markOnboardingIntroAsSeen()
                     withAnimation(.easeInOut(duration: 0.3)) {
                         appState.navigationPath.append(AppDestination.login)

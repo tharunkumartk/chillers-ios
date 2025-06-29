@@ -37,7 +37,7 @@ struct PassphraseView: View {
             // Main Content
             VStack(spacing: 32) {
                 VStack(spacing: 16) {
-                    Text("know a brother?")
+                    Text("know a chiller?")
                         .font(.largeTitle.weight(.bold))
                         .foregroundColor(.primary)
                         .multilineTextAlignment(.center)
@@ -77,6 +77,10 @@ struct PassphraseView: View {
                 VStack(spacing: 16) {
                     // Continue with passphrase button
                     Button {
+                        // Add haptic feedback
+                        let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
+                        impactFeedback.impactOccurred()
+                        
                         checkPassphrase()
                     } label: {
                         HStack {
@@ -109,6 +113,10 @@ struct PassphraseView: View {
                     
                     // No passphrase button
                     Button {
+                        // Add haptic feedback
+                        let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
+                        impactFeedback.impactOccurred()
+                        
                         withAnimation(.easeInOut(duration: 0.4)) {
                             appState.navigationPath.append(AppDestination.waitlist)
                         }

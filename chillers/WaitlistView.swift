@@ -49,6 +49,9 @@ struct WaitlistView: View {
                     .padding(.horizontal, 40)
                 
                 Button {
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
+                    impactFeedback.impactOccurred()
+                    
                     appState.logout()
                 } label: {
                     Text("Sign Out")

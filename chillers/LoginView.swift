@@ -172,6 +172,10 @@ struct LoginView: View {
     private func loginWithPhoneNumber() {
         guard isPhoneNumberValid else { return }
         
+        // Add haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
+        impactFeedback.impactOccurred()
+        
         isLoading = true
         isPhoneFieldFocused = false
         

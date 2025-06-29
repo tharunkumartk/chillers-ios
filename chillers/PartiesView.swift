@@ -416,7 +416,7 @@ struct CustomSegmentedControl: View {
         case "Hosting":
             return "Hosting 0"
         case "Open invites":
-            return "Open inv"
+            return "Open"
         default:
             return option
         }

@@ -115,15 +115,17 @@ struct NotificationPermissionView: View {
     }
     
     private func requestNotifications() {
+        // Add haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
+        impactFeedback.impactOccurred()
+        
         isLoading = true
         
         Task {
             await appState.requestNotificationPermissions()
             
-            // Register for remote notifications to get device token
-            await MainActor.run {
-                UIApplication.shared.registerForRemoteNotifications()
-            }
+            // Registration for remote notifications is now handled automatically
+            // by the AppDelegate lifecycle methods
             
             await MainActor.run {
                 completeLogin()
@@ -132,6 +134,10 @@ struct NotificationPermissionView: View {
     }
     
     private func skipNotifications() {
+        // Add haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
+        impactFeedback.impactOccurred()
+        
         appState.notificationPermissionRequested = true
         appState.notificationPermissionStatus = .denied
         UserDefaults.standard.set(true, forKey: "notification_permission_requested")

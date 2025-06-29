@@ -27,6 +27,7 @@ class AppState {
     private let notificationStatusKey = "notification_permission_status"
     private let notificationRequestedKey = "notification_permission_requested"
     private let onboardingIntroKey = "has_seen_onboarding_intro"
+    private let apnTokenKey = "current_apn_token"
     
     init() {
         loadOnboardingIntroState()
@@ -75,22 +76,78 @@ class AppState {
         }
     }
     
+    /// Register for remote notifications - should be called on app launch
+    func registerForRemoteNotificationsIfNeeded() {
+        // Only register if notifications are authorized or not determined
+        guard notificationPermissionStatus == .authorized || notificationPermissionStatus == .notDetermined else {
+            return
+        }
+        
+        DispatchQueue.main.async {
+            UIApplication.shared.registerForRemoteNotifications()
+        }
+    }
+    
     /// Handle APN device token registration
     func handleAPNDeviceToken(_ deviceToken: Data) {
         let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
         
+        // Check if this token is different from the stored one
+        let storedToken = UserDefaults.standard.string(forKey: apnTokenKey)
+        guard tokenString != storedToken else {
+            print("APN token unchanged, skipping update")
+            return
+        }
+        
+        // Store the new token locally
+        UserDefaults.standard.set(tokenString, forKey: apnTokenKey)
+        print("New APN token received: \(tokenString)")
+        
         Task {
-            guard let userId = currentUser?.id else { return }
+            guard let userId = currentUser?.id else { 
+                print("No current user, storing token for later update")
+                return 
+            }
             
             do {
                 try await SupabaseManager.shared.updateAPNDeviceToken(
                     userId: userId,
                     deviceToken: tokenString
                 )
-                print("Successfully updated APN device token")
+                print("Successfully updated APN device token in database")
             } catch {
                 print("Failed to update APN device token: \(error)")
+                // Keep the token stored locally for retry later
             }
+        }
+    }
+    
+    /// Update APN token for current user if we have a stored token that wasn't synced
+    func syncStoredAPNTokenIfNeeded() {
+        guard let userId = currentUser?.id,
+              let storedToken = UserDefaults.standard.string(forKey: apnTokenKey),
+              !storedToken.isEmpty else {
+            return
+        }
+        
+        Task {
+            do {
+                try await SupabaseManager.shared.updateAPNDeviceToken(
+                    userId: userId,
+                    deviceToken: storedToken
+                )
+                print("Successfully synced stored APN token to database")
+            } catch {
+                print("Failed to sync stored APN token: \(error)")
+            }
+        }
+    }
+    
+    /// Force refresh of APN token registration (useful for debugging)
+    func forceRefreshAPNToken() {
+        print("Forcing APN token refresh...")
+        DispatchQueue.main.async {
+            UIApplication.shared.registerForRemoteNotifications()
         }
     }
     
@@ -157,6 +214,9 @@ class AppState {
                                     )
                                     self.saveSession(session)
                                     
+                                    // Sync any stored APN token to the database
+                                    self.syncStoredAPNTokenIfNeeded()
+                                    
                                     if userProfileExists {
                                         // Both user and user profile exist - auto login
                                         self.isLoggedIn = true
@@ -166,6 +226,8 @@ class AppState {
                                     } else {
                                         // User exists but no profile - go through onboarding to create profile
                                         // Don't set isLoggedIn = true yet since profile doesn't exist
+                                        // Clear navigation stack and start fresh onboarding flow
+                                        self.navigationPath = NavigationPath()
                                         self.navigationPath.append(AppDestination.onboardingBasicInfo)
                                     }
                                 }
@@ -179,6 +241,12 @@ class AppState {
                                         name: databaseUser.name ?? "User"
                                     )
                                     self.saveSession(session)
+                                    
+                                    // Sync any stored APN token to the database
+                                    self.syncStoredAPNTokenIfNeeded()
+                                    
+                                    // Clear navigation stack and start fresh onboarding flow
+                                    self.navigationPath = NavigationPath()
                                     self.navigationPath.append(AppDestination.onboardingBasicInfo)
                                 }
                             }
@@ -198,7 +266,11 @@ class AppState {
                                     // Don't set isLoggedIn = true yet since profile doesn't exist
                                     self.saveSession(session)
                                     
-                                    // Navigate to onboarding
+                                    // Sync any stored APN token to the database
+                                    self.syncStoredAPNTokenIfNeeded()
+                                    
+                                    // Clear navigation stack and start fresh onboarding flow
+                                    self.navigationPath = NavigationPath()
                                     self.navigationPath.append(AppDestination.onboardingBasicInfo)
                                 }
                             } catch {
@@ -214,6 +286,12 @@ class AppState {
                                         name: "User"
                                     )
                                     self.saveSession(session)
+                                    
+                                    // Sync any stored APN token to the database
+                                    self.syncStoredAPNTokenIfNeeded()
+                                    
+                                    // Clear navigation stack and start fresh onboarding flow
+                                    self.navigationPath = NavigationPath()
                                     self.navigationPath.append(AppDestination.onboardingBasicInfo)
                                 }
                             }
@@ -373,6 +451,7 @@ class AppState {
         UserDefaults.standard.removeObject(forKey: notificationStatusKey)
         UserDefaults.standard.removeObject(forKey: notificationRequestedKey)
         UserDefaults.standard.removeObject(forKey: onboardingIntroKey)
+        UserDefaults.standard.removeObject(forKey: apnTokenKey)
         
         self.notificationPermissionStatus = .notDetermined
         self.notificationPermissionRequested = false

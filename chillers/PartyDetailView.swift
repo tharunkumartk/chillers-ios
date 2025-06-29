@@ -29,38 +29,18 @@ struct PartyDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 16) {
-                    // Title and basic info above image
+                    // Title above image
                     VStack(alignment: .leading, spacing: 12) {
                         Text(event.title)
                             .font(.system(size: 32, weight: .bold, design: .serif))
                             .foregroundColor(.primary)
                             .multilineTextAlignment(.leading)
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                if let eventTime = event.eventTime {
-                                    Text("\(formattedDate)")
-                                        .font(.system(size: 18, weight: .medium))
-                                        .foregroundColor(.primary)
-                                } else {
-                                    Text(formattedDate)
-                                        .font(.system(size: 18, weight: .medium))
-                                        .foregroundColor(.primary)
-                                }
-                            }
-                            
-                            if let eventTime = event.eventTime {
-                                Text(eventTime)
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(.secondary)
-                            }
-                        }
                     }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
                 
-                // Hero Image with padding
+                // Hero Image with date/time pills overlay
                 AsyncImage(url: URL(string: event.imageUrl ?? "")) { image in
                     image
                         .resizable()
@@ -76,6 +56,37 @@ struct PartyDetailView: View {
                 .frame(height: 300)
                 .clipped()
                 .cornerRadius(12)
+                .overlay(
+                    // Date and time pills overlay
+                    VStack {
+                        Spacer()
+                        HStack {
+                            VStack(alignment: .leading, spacing: 8) {
+                                // Date pill
+                                Text(formattedDate)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.black.opacity(0.7))
+                                    .clipShape(Capsule())
+                                
+                                // Time pill (if available)
+                                if let eventTime = event.eventTime {
+                                    Text(eventTime)
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(Color.black.opacity(0.7))
+                                        .clipShape(Capsule())
+                                }
+                            }
+                            Spacer()
+                        }
+                        .padding(16)
+                    }
+                )
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
                 

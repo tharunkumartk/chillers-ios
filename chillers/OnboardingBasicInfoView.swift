@@ -197,6 +197,10 @@ struct OnboardingBasicInfoView: View {
     // MARK: - Actions
     
     private func continueToNext() {
+        // Add haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
+        impactFeedback.impactOccurred()
+        
         if currentStep < totalSteps - 1 {
             withAnimation(.easeInOut(duration: 0.4)) {
                 currentStep += 1

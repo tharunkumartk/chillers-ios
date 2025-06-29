@@ -176,6 +176,10 @@ struct OTPVerificationView: View {
     }
     
     private func resendOTP() {
+        // Add haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
+        impactFeedback.impactOccurred()
+        
         Task {
             do {
                 try await SupabaseManager.shared.sendOTP(to: phoneNumber)
@@ -189,6 +193,10 @@ struct OTPVerificationView: View {
     
     private func verifyOTP() {
         guard otpCode.count == 6 else { return }
+        
+        // Add haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
+        impactFeedback.impactOccurred()
         
         isLoading = true
         errorMessage = ""

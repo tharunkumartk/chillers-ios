@@ -16,6 +16,20 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         AppDelegate.instance = self
     }
     
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        // Register for remote notifications on app launch
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            AppState.shared?.registerForRemoteNotificationsIfNeeded()
+        }
+        return true
+    }
+    
+    func applicationDidBecomeActive(_ application: UIApplication) {
+        // Register for remote notifications when app becomes active
+        // This ensures we get updated tokens after app updates, iOS updates, etc.
+        AppState.shared?.registerForRemoteNotificationsIfNeeded()
+    }
+    
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         // Use the shared AppState instance to handle the token
         AppState.shared?.handleAPNDeviceToken(deviceToken)
@@ -23,7 +37,7 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
         // Handle registration failure
-        print("Failed to register for remote notifications: \(error)")
+        AppState.shared?.handleAPNDeviceTokenError(error)
     }
 }
 

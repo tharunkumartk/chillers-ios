@@ -163,6 +163,11 @@ struct OnboardingPhotosView: View {
     
     private func continueToPrompts() {
         guard canContinue else { return }
+        
+        // Add haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
+        impactFeedback.impactOccurred()
+        
         withAnimation(.easeInOut(duration: 0.3)) {
             appState.navigationPath.append(AppDestination.onboardingPrompts)
         }
@@ -176,7 +181,13 @@ struct PhotoSlotView: View {
     let onTap: () -> Void
     
     var body: some View {
-        Button(action: onTap) {
+        Button(action: {
+            // Add haptic feedback
+            let impactFeedback = UIImpactFeedbackGenerator(style: .heavy)
+            impactFeedback.impactOccurred()
+            
+            onTap()
+        }) {
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
                     .fill(Color(.systemGray6))
