@@ -13,30 +13,38 @@ struct MainTabView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
-        TabView {
-            ExploreView()
-                .tabItem {
-                    Image(systemName: "bubble.left.and.text.bubble.right")
-                    Text("Confessions")
-                }
-            
-            HomeView()
-                .tabItem {
-                    Image(systemName: "snowflake")
-                    Text("Chillers")
-                }
+        NavigationView {
+            TabView {
+                ExploreView()
+                    .tabItem {
+                        Image(systemName: "bubble.left.and.text.bubble.right")
+                        Text("Confessions")
+                    }
+                
+                HomeView()
+                    .tabItem {
+                        Image(systemName: "snowflake")
+                        Text("Chillers")
+                    }
 
-            ProfileView()
-                .tabItem {
-                    Image(systemName: "calendar.badge.plus")
-                    Text("Events")
+                ProfileView()
+                    .tabItem {
+                        Image(systemName: "calendar.badge.plus")
+                        Text("Events")
+                    }
+            }
+            .navigationBarTitle("Chillers", displayMode: .inline)
+            .navigationBarItems(trailing:
+                NavigationLink(destination: ProfileView()) {
+                    Image(systemName: "person.circle")
+                        .font(.title)
                 }
-        }
-        .navigationBarHidden(true)
-        .onAppear {
-            // Check current notification permission status when app appears
-            Task {
-                await appState.checkNotificationPermissionStatus()
+            )
+            .onAppear {
+                // Check current notification permission status when app appears
+                Task {
+                    await appState.checkNotificationPermissionStatus()
+                }
             }
         }
     }
