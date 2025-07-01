@@ -7,39 +7,29 @@
 
 import SwiftUI
 
-// MARK: - Profile View (Now showing Parties)
+// MARK: - Profile View
 struct ProfileView: View {
     @Environment(AppState.self) private var appState
     
     var body: some View {
-        PartiesView()
-    }
-}
-
-// MARK: - Profile Row Component
-struct ProfileRow: View {
-    let icon: String
-    let title: String
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack {
-                Image(systemName: icon)
-                    .frame(width: 24)
-                
-                Text(title)
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.vertical, 8)
-            .contentShape(Rectangle())
+        VStack {
+            // Display user information
+            Text("User Profile")
+                .font(.largeTitle)
+                .padding()
+            
+            // Example user information
+            Text("Name: \(appState.user.name)")
+                .font(.title2)
+                .padding()
+            
+            Text("Email: \(appState.user.email)")
+                .font(.title2)
+                .padding()
+            
+            Spacer()
         }
-        .buttonStyle(.plain)
+        .navigationTitle("Profile")
     }
 }
 
