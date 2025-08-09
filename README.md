@@ -7,7 +7,7 @@
   Exclusive iOS app for connecting verified "chillers" through curated parties and community-driven filtering — built with <a href="https://developer.apple.com/xcode/swiftui/" target="_blank">SwiftUI</a> and <a href="https://supabase.com/" target="_blank">Supabase</a>.
 </p>
 
-![demo](docs/logo.png)
+![demo](https://tharunkumar.xyz/_next/image?url=%2Fimages%2Fproject%2Fchillers%2Fchillers-logo.png&w=1920&q=75)
 
 
 ## Development setup
