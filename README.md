@@ -112,7 +112,7 @@ Notes:
 
 ## System diagram and demo
 
-![Chillers system diagram](docs/chillers-sys-diagram.png)
+![Chillers system diagram](https://tharunkumar.xyz/_next/image?url=%2Fimages%2Fproject%2Fchillers%2Fchillers-sys-diagram.png&w=1920&q=75)
 
 [Onboarding demo video](https://ydfksaipdlqazgcsrdlm.supabase.co/storage/v1/object/public/demo-videos/chillers-demo.mp4)
 
